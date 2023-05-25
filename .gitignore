@@ -1,0 +1,9 @@
+*.directory
+*~
+*/_build_*
+*/executable.out
+*/.vscode*
+*/.vs/*
+*/x64/*
+*.sln
+*.vcxproj*
