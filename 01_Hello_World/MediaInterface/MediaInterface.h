@@ -103,7 +103,6 @@ private:
 
     void SetWindowIcon(std::uint32_t width, std::uint32_t height, std::uint8_t* data);
 
-
     std::unique_ptr<Program> program;
     SDL_Window*   window;
     SDL_GLContext glContext;
@@ -116,6 +115,15 @@ private:
     std::chrono::time_point<std::chrono::steady_clock> lastCallOfTimeElapsed;
 
     friend class ImageHandle;
+
+    struct DeleterHelper
+    {
+        MediaInterface* mi = nullptr;
+        ~DeleterHelper() { if (mi) mi->Free(); }
+    };
+
+    // Important that this is the last member (so it is the first to get deleted).
+    DeleterHelper deleter;
 };
 
 } // End of namespace mi.

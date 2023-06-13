@@ -69,8 +69,9 @@ string MediaInterface::SdlGlAttrToString(SDL_GLattr attr)
 MediaInterface::MediaInterface(
     const std::function<std::unique_ptr<Program>(MediaInterface&)>& programCreator)
 {
-    window    = nullptr;
-    glContext = nullptr;
+    deleter.mi = this;
+    window     = nullptr;
+    glContext  = nullptr;
 
     Init(programCreator);
     Run();
@@ -81,6 +82,7 @@ MediaInterface::MediaInterface(
 
 MediaInterface::~MediaInterface()
 {
+    deleter.mi = nullptr;
     Free();
     return;
 }

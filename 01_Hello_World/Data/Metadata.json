@@ -1,0 +1,82 @@
+{
+    "General":
+    {
+        "TileSize": 16,
+        "KeyColor": "0xFE00DD"
+    },
+    "Tilesets":
+    {
+        "TestTiles":
+        {
+            "Filepath": "Media/Tiles.bmp",
+            "TileData":
+            {
+                "HeroFacingDownStanding":  {"Pos": [  1,  1]},
+                "HeroFacingDownMoving":    {"Pos": [ 20,  1]},
+                "HeroFacingUpStanding":    {"Pos": [ 39,  1]},
+                "HeroFacingUpMoving":      {"Pos": [ 58,  1]},
+                "HeroFacingRightStanding": {"Pos": [ 77,  1]},
+                "HeroFacingRightMoving":   {"Pos": [ 96,  1]},
+                "HeroFacingLeftStanding":  {"Pos": [115,  1]},
+                "HeroFacingLeftMoving":    {"Pos": [134,  1]},
+                "HeroFacingDownPushingA":  {"Pos": [  1, 20]},
+                "HeroFacingDownPushingB":  {"Pos": [ 20, 20]},
+                "HeroFacingUpPushingA":    {"Pos": [ 39, 20]},
+                "HeroFacingUpPushingB":    {"Pos": [ 58, 20]},
+                "HeroFacingRightPushingA": {"Pos": [ 77, 20]},
+                "HeroFacingRightPushingB": {"Pos": [ 96, 20]},
+                "HeroFacingLeftPushingA":  {"Pos": [115, 20]},
+                "HeroFacingLeftPushingB":  {"Pos": [134, 20]},
+                "Background":              {"Pos": [  1, 39]},
+                "Block":                   {"Pos": [ 20, 39]},
+                "KeyDownArrowUnpushed":    {"Pos": [  1, 58]},
+                "KeyDownArrowPushed":      {"Pos": [ 20, 58]},
+                "KeyUpArrowUnpushed":      {"Pos": [ 39, 58]},
+                "KeyUpArrowPushed":        {"Pos": [ 58, 58]},
+                "KeyRightArrowUnpushed":   {"Pos": [ 77, 58]},
+                "KeyRightArrowPushed":     {"Pos": [ 96, 58]},
+                "KeyLeftArrowUnpushed":    {"Pos": [115, 58]},
+                "KeyLeftArrowPushed":      {"Pos": [134, 58]}
+            }
+        }
+    },
+    "Areas":
+    {
+        "Test":
+        {
+            "WidthInTiles":  10,
+            "HeightInTiles": 10,
+            "TileMapping":
+            {
+                "b": "TestTiles/Background",
+                "X": "TestTiles/Block"
+            },
+            "Background":
+            [
+                "bbbbbbbbbb",
+                "bbbbbbbbbb",
+                "bbbbbbbbbb",
+                "bbbbbbbbbb",
+                "bbbbbbbbbb",
+                "bbbbbbbbbb",
+                "bbbbbbbbbb",
+                "bbbbbbbbbb",
+                "bbbbbbbbbb",
+                "bbbbbbbbbb"
+            ],
+            "Foreground":
+            [
+                "..........",
+                "..........",
+                "...X......",
+                "....XX.XXX",
+                ".X..XXXX.X",
+                ".....X....",
+                "..........",
+                "..........",
+                "..........",
+                ".........."
+            ]
+        }
+    }
+}
