@@ -32,6 +32,14 @@ private:
     };
 
     void SetDirFromKeys(const KeyStates& keyStates);
+    static void UpdateOffsetsFromDir(std::int32_t& offsetX, std::int32_t& offsetY, Dir dir);
+    
+    // Returns true if suceeded (and updates x, y and timeLeft).
+    // Returns false if failed (no updates are done).
+    bool TryMoving(Dir dir1, Dir dir2, std::int32_t& timeLeft, const TileBaseRect& base);
+
+    // Returns None if can't glance.
+    Dir DetermineGlanceDir(Dir primaryDir, const TileBaseRect& base);
 
     enum State
     {
@@ -44,24 +52,25 @@ private:
     std::int32_t x      = 0;
     std::int32_t y      = 0;
 
-    std::int32_t timeToMove = 300; // Milliseconds taken to move between tiles.
+    // Time to move 1 tile distance orthogonally.
+    std::int32_t timeToMoveATileOrthogonallyMicrosec  = 300000;
+    std::int32_t timeToMoveAPixelOrthogonallyMicrosec = 0; // Filled in by constructor.
+    std::int32_t timeToMoveAPixelDiagonallyMicrosec   = 0; // Filled in by constructor.
+
+    std::int32_t maxGlancePixels = 4; // Allow the character to glance by this number of pixels.
 
     // Keeps track of the last key presses.
     Dir keyPrimaryDir   = None;
     Dir keySecondaryDir = None;
 
-    // Animation timers to animate the position.
-    std::int32_t animCurrTime = 0;
-    std::int32_t animMaxTime  = 0;
-    std::int32_t animEndX     = 0;
-    std::int32_t animEndY     = 0;
+    // Animation timer to ensure smooth movements between frames.
+    std::int32_t animMoveTimeOverflowMicrosec = 0;
 
-    // Seperate animation timers to correctly animate the tile.
-    std::int32_t animTileCurrTime = 0;
-    std::int32_t animTileOffset   = 0;
+    // Animation timers to correctly animate the tile.
+    std::int32_t animTileTimeMicrosec = 0;
+    std::int32_t animTileOffset       = 0; // Flips between 0 and 1
 
-    std::int32_t tileSizeInPixels = 16;
-    std::int32_t fps = 60;
+    std::int32_t frameIntervalMicrosec = 0; // Filled in by constructor.
 
     // The tiles are in the order [Up-Still, Up-Moving, Right-Still, Right Moving,
     // Down-Still, Down-Moving, Left-Still, Left-Moving].
@@ -69,4 +78,5 @@ private:
     std::array<std::int32_t, 8> tileIndices = {};
 
     const Area* area = nullptr;
+    const TileData* tileData = nullptr;
 };

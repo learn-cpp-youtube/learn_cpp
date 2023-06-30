@@ -1,13 +1,17 @@
 #include "Hero.h"
+#include "CollisionDetection.h"
 #include <algorithm>
 #include <array>
 #include <vector>
 
 Hero::Hero(const TileData& tileData, const Area& area, std::int32_t fps)
 {
-    this->area             = &area;
-    this->tileSizeInPixels = tileData.GetTileSizeInPixels();
-    this->fps              = fps;
+    this->area = &area;
+    this->tileData = &tileData;
+    frameIntervalMicrosec = 1000000 / fps;
+    timeToMoveAPixelOrthogonallyMicrosec = timeToMoveATileOrthogonallyMicrosec
+                                           / tileData.GetTileSizeInPixels();
+    timeToMoveAPixelDiagonallyMicrosec = timeToMoveAPixelOrthogonallyMicrosec * 4/3;
 
     tileIndices[0] = tileData.GetTileIndex("TestTiles/HeroFacingUpStanding");
     tileIndices[1] = tileData.GetTileIndex("TestTiles/HeroFacingUpMoving");
@@ -22,12 +26,8 @@ Hero::Hero(const TileData& tileData, const Area& area, std::int32_t fps)
 
 std::int32_t Hero::GetTileIndex()
 {
+    //return tileData->GetTileIndex("TestTiles/BaseHero");
     std::int32_t faceOffset = 2 * static_cast<std::int32_t>(facing);
-
-    if (state == Still)
-        return tileIndices[faceOffset];
-        
-    // In the case state == Moving.
     return tileIndices[faceOffset + animTileOffset];
 }
 
@@ -45,146 +45,93 @@ void Hero::Update(const KeyStates& keyStates)
         if (keyPrimaryDir == None)
         {
             state = Still;
-            return;
+            animTileOffset = 0;
+            animTileTimeMicrosec = 0;
         }
-        
-        state = Moving;
+        else
+        {      
+            state = Moving;
 
-        // Check if we need to change the direction the character is facing. 
-        if (keyPrimaryDir != oldPrimaryDir || keyPrimaryDir != facing)
-        {
-            facing = keyPrimaryDir;
-            // Restart the animation of the tile.
-            animTileCurrTime = 0;
-            animTileOffset   = 1;
+            // Check if we need to change the direction the character is facing. 
+            if (keyPrimaryDir != oldPrimaryDir || keyPrimaryDir != facing)
+            {
+                facing = keyPrimaryDir;
+                // Restart the animation of the tile.
+                animTileOffset = 1;
+                animTileTimeMicrosec = 0;
+            }
         }
-
-        // We'll let the "Update the position animation" code block handle setting up the position
-        // animation.
-        animCurrTime = 1;
-        animMaxTime  = 1;
-        animEndX     = 0;
-        animEndY     = 0;
     }
 
     if (state == Still)
+    {
+        animMoveTimeOverflowMicrosec = 0;
         return;
+    }
 
     // Update the tile animation.
         
     // Calculate how many milliseconds have passed since the start of the animation.
-    animTileCurrTime += 1000 / fps;
+    animTileTimeMicrosec += frameIntervalMicrosec;
 
-    // Flip the offset between 0 and 1 every timeToMove/2 milliseconds.
-    while (animTileCurrTime >= timeToMove/2)
+    // Flip the offset between 0 and 1 every timeToMoveATileOrthogonallyMicrosec/2 microseconds.
+    while (animTileTimeMicrosec >= timeToMoveATileOrthogonallyMicrosec/2)
     {
-        animTileCurrTime -= timeToMove/2;
-        animTileOffset    = 1 - animTileOffset;
+        animTileTimeMicrosec -= timeToMoveATileOrthogonallyMicrosec/2;
+        animTileOffset        = 1 - animTileOffset;
     }
 
     // Update the position animation.
+
+    const TileBaseRect& heroBase = tileData->GetTileBaseRect(GetTileIndex());
+    bool determinedGlanceDir = false;
+    Dir  glanceDir = None;
+
+    // Use up some time waiting to account for the movement that happened in the last frame.
+    std::int32_t timeLeftInMicrosec = frameIntervalMicrosec - animMoveTimeOverflowMicrosec;
+    while (timeLeftInMicrosec > 0)
+    {
+        if (TryMoving(keyPrimaryDir, keySecondaryDir, timeLeftInMicrosec, heroBase))
+        {
+            determinedGlanceDir = false;
+            continue;
+        }
+
+        // Check if we are:
+        // - moving diagonally but can remove a direction to avoid being blocked
+        // - moving orthogonally but can glance off a block. 
+
+        if (keySecondaryDir != None)
+        {
+            if (TryMoving(keyPrimaryDir, None, timeLeftInMicrosec, heroBase))
+                continue;
+
+            if (TryMoving(keySecondaryDir, None, timeLeftInMicrosec, heroBase))
+                continue;
+        }
+        else
+        {
+            if (!determinedGlanceDir)
+            {
+                glanceDir = DetermineGlanceDir(keyPrimaryDir, heroBase);
+                determinedGlanceDir = true;
+            }
+
+            if (glanceDir!=None && TryMoving(glanceDir, None, timeLeftInMicrosec, heroBase))
+                continue;
+        }
+
+        // Fully blocked.
+        timeLeftInMicrosec = 0;
+        break;
+    }
+
+    // Do the rest of the waiting in the next frame.
+    animMoveTimeOverflowMicrosec = -timeLeftInMicrosec;
     
-    // We will interpolate the position between 0 and animEnd over a period of animMaxTime.
-    // After animMaxTime has elapsed we will set up a new interpolation to continue the animation.
-    std::int32_t oldAnimX = animEndX * animCurrTime / animMaxTime;
-    std::int32_t oldAnimY = animEndY * animCurrTime / animMaxTime;
-    std::int32_t newAnimX = 0;
-    std::int32_t newAnimY = 0;
-
-    // Calculate how many milliseconds have passed since the start of the animation.
-    animCurrTime += 1000 / fps;
-
-    // Check if the animation has ended.
-    while (animCurrTime >= animMaxTime)
-    {
-        animCurrTime -= animMaxTime;
-        newAnimX = animEndX;
-        newAnimY = animEndY;
-
-        // Set up a new animation interpolation.
-        if (keySecondaryDir == None)
-            animMaxTime = timeToMove; 
-        else
-        {
-            // Remember that moving diagonally takes longer.
-            // 4/3 is approximately the square root of 2.
-            // Better approximations feel slower and sluggish (e.g. 14/10).
-            animMaxTime = timeToMove * 4/3;
-        }
-            
-        animEndX = 0;
-        animEndY = 0;
-
-        for (Dir dir : {keyPrimaryDir, keySecondaryDir})
-        {
-            if (dir == Up)
-                animEndY -= tileSizeInPixels;
-            if (dir == Right)
-                animEndX += tileSizeInPixels;
-            if (dir == Down)
-                animEndY += tileSizeInPixels;
-            if (dir == Left)
-                animEndX -= tileSizeInPixels;
-        }
-    }
-
-    // Interpolate to get new anim coordinates.
-    newAnimX += animEndX * animCurrTime / animMaxTime;
-    newAnimY += animEndY * animCurrTime / animMaxTime;
-
-    // Work out the deltas.
-    std::int32_t deltaAnimX = newAnimX - oldAnimX;
-    std::int32_t deltaAnimY = newAnimY - oldAnimY;
-
-    // Update x position.
-    x += deltaAnimX;
-
-    // Force the character to not intersect with foreground tiles.
-    for (std::int32_t yIndexPos=0; yIndexPos<area->heightInTiles; ++yIndexPos)
-    for (std::int32_t xIndexPos=0; xIndexPos<area->widthInTiles;  ++xIndexPos)
-    {
-        if (area->GetForegroundTileIndex(xIndexPos, yIndexPos) == TileData::NotFound)
-            continue; // No blocking tile.
-
-        const auto& t = tileSizeInPixels;
-        const auto  xTilePos = xIndexPos*t;
-        const auto  yTilePos = yIndexPos*t;
-        if (x+t<=xTilePos || xTilePos+t<=x || y+t<=yTilePos || yTilePos+t<=y)
-            continue; // Not intersecting.
-
-        // Require either x <= xTilePos-t or xTilePos+t <= x, check which is easier to achieve.
-        if (abs(xTilePos-t-x) < abs(xTilePos+t-x))
-            x = xTilePos - t;
-        else
-            x = xTilePos + t;
-    }
-
-    // Update y position.
-    y += deltaAnimY;
-
-    // Force the character to not intersect with foreground tiles.
-    for (std::int32_t yIndexPos=0; yIndexPos<area->heightInTiles; ++yIndexPos)
-    for (std::int32_t xIndexPos=0; xIndexPos<area->widthInTiles;  ++xIndexPos)
-    {
-        if (area->GetForegroundTileIndex(xIndexPos, yIndexPos) == TileData::NotFound)
-            continue; // No blocking tile.
-
-        const auto& t = tileSizeInPixels;
-        const auto  xTilePos = xIndexPos*t;
-        const auto  yTilePos = yIndexPos*t;
-        if (x+t<=xTilePos || xTilePos+t<=x || y+t<=yTilePos || yTilePos+t<=y)
-            continue; // Not intersecting.
-
-        // Require either y <= yTilePos-t or yTilePos+t <= y, check which is easier to achieve.
-        if (abs(yTilePos-t-y) < abs(yTilePos+t-y))
-            y = yTilePos - t;
-        else
-            y = yTilePos + t;
-    }
-
     // Force the character to stay on the screen.
-    x = std::clamp(x, 0, area->widthInTiles *tileSizeInPixels-tileSizeInPixels);
-    y = std::clamp(y, 0, area->heightInTiles*tileSizeInPixels-tileSizeInPixels);
+    x = std::clamp(x, 0, (area->widthInTiles-1)  * tileData->GetTileSizeInPixels());
+    y = std::clamp(y, 0, (area->heightInTiles-1) * tileData->GetTileSizeInPixels());
     return;
 }
 
@@ -233,4 +180,74 @@ void Hero::SetDirFromKeys(const KeyStates& keyStates)
     }
 
     return;
+}
+
+void Hero::UpdateOffsetsFromDir(std::int32_t& offsetX, std::int32_t& offsetY, Dir dir)
+{
+    switch (dir)
+    {
+    case Up:
+        offsetY -= 1;
+        break;
+    case Down:
+        offsetY += 1;
+        break;
+    case Left:
+        offsetX -= 1;
+        break;
+    case Right:
+        offsetX += 1;
+        break;
+    default:
+        break;
+    }
+}
+
+bool Hero::TryMoving(Dir dir1, Dir dir2, std::int32_t& timeLeft, const TileBaseRect& base)
+{
+    std::int32_t offsetX = 0;
+    std::int32_t offsetY = 0;
+
+    UpdateOffsetsFromDir(offsetX, offsetY, dir1);
+    UpdateOffsetsFromDir(offsetX, offsetY, dir2);
+    if (IntersectingAgainstForeground(x+offsetX, y+offsetY, base, *area, *tileData))
+        return false;
+
+    // Update.
+    x += offsetX;
+    y += offsetY;
+
+    if (dir1 == None || dir2 == None)
+        timeLeft -= timeToMoveAPixelOrthogonallyMicrosec;
+    else
+        timeLeft -= timeToMoveAPixelDiagonallyMicrosec;
+
+    return true;
+}
+
+Hero::Dir Hero::DetermineGlanceDir(Dir primaryDir, const TileBaseRect& base)
+{
+    // Try the two directions at right angles to the primaryDir.
+    Dir glanceDir[2];
+    glanceDir[0] = static_cast<Dir>((static_cast<std::int32_t>(primaryDir) + 1) % 4);
+    glanceDir[1] = static_cast<Dir>((static_cast<std::int32_t>(primaryDir) + 3) % 4);
+
+    std::int32_t pX = 0;
+    std::int32_t pY = 0;
+    UpdateOffsetsFromDir(pX, pY, primaryDir);
+
+    std::int32_t gX[2] = {0, 0};
+    std::int32_t gY[2] = {0, 0};
+    for (std::int32_t i=0; i<2; ++i)
+        UpdateOffsetsFromDir(gX[i], gY[i], glanceDir[i]);
+
+    for (std::int32_t dist=1; dist<=maxGlancePixels; ++dist)
+    for (std::int32_t i=0; i<2; ++i)
+    {
+        if (!IntersectingAgainstForeground(x+pX+gX[i]*dist, y+pY+gY[i]*dist, base, *area, *tileData)
+            && !IntersectingAgainstForeground(x+gX[i]*dist, y+gY[i]*dist, base, *area, *tileData))
+            return glanceDir[i];
+    }
+
+    return None;
 }

@@ -54,7 +54,9 @@ void TileData::Init(mi::MediaInterface& mi, const json::Object& metadata)
     mi::Color keyColor = ConvertToColor(GetValue(generalObj, "KeyColor").GetString());
 
     // Read the tilesets info.
+    // (In the first pass don't read the base data but keep a list of base tiles.)
     Tile tile{};
+    std::map<std::string, TileBaseRect> baseTiles;
     const json::Object& tilesetsObj = GetValue(metadata, "Tilesets").GetObject();
     for (const auto& [name, data] : tilesetsObj)
     {
@@ -71,7 +73,9 @@ void TileData::Init(mi::MediaInterface& mi, const json::Object& metadata)
         for (const auto& [tileName, tileData] : tileDataObj)
         {
             std::int32_t tileIndex = static_cast<std::int32_t>(tiles.size());
-            const json::Array& posArray = GetValue(tileData.GetObject(), "Pos").GetArray();
+
+            const json::Object& tileObj = tileData.GetObject();
+            const json::Array& posArray = GetValue(tileObj, "Pos").GetArray();
 
             if (posArray.size() != 2)
                 throw error("Expected \"Pos\" to be an array of size 2.");
@@ -81,6 +85,33 @@ void TileData::Init(mi::MediaInterface& mi, const json::Object& metadata)
 
             tiles.push_back(tile);
             stringToTileIndex.insert({name+"/"+tileName, tileIndex});
+            
+            // Check if there is an associated base tile. 
+            auto it = tileObj.find("Base");
+            if (it != tileObj.end())
+                baseTiles[it->second.GetString()] = TileBaseRect{}; // Placeholder.
+        }
+    }
+
+    FillInBaseData(baseTiles);
+
+    // Second pass, fill in the base rect data for each tile.
+    TileBaseRect defaultBase = {0, tileSizeInPixels-1, tileSizeInPixels, tileSizeInPixels, false};
+    for (const auto& [name, data] : tilesetsObj)
+    {
+        // Read the tile data.
+        const json::Object& tileDataObj = GetValue(data.GetObject(), "TileData").GetObject();
+        for (const auto& [tileName, tileData] : tileDataObj)
+        {
+            const json::Object& tileObj = tileData.GetObject();
+            std::int32_t index = GetTileIndex(name+"/"+tileName);
+                        
+            // Check if there is an associated base tile. 
+            auto it = tileObj.find("Base");
+            if (it != tileObj.end())
+                tiles[index].base = baseTiles[it->second.GetString()];
+            else
+                tiles[index].base = defaultBase;
         }
     }
 }
@@ -124,5 +155,89 @@ void TileData::DrawTile(mi::ImageHandle& destImg,
                           tilesets[srcTile.tilesetIndex],
                           srcTile.x, srcTile.y, tileSizeInPixels, tileSizeInPixels,
                           alpha);
+    }
+}
+
+void TileData::FillInBaseData(std::map<std::string, TileBaseRect>& baseTiles)
+{
+    // Create a list of each of the base tiles for each tileset.
+    std::map<std::int32_t, std::vector<std::string>> tilesetToTiles;
+
+    for (const auto& [name, base] : baseTiles)
+    {
+        std::int32_t tileIndex = GetTileIndex(name);
+        if (tileIndex == TileData::NotFound)
+            throw error("Could not find tile data for \""+name+"\".");
+
+        std::int32_t tilesetIndex = tiles[tileIndex].tilesetIndex;
+        tilesetToTiles[tilesetIndex].push_back(name);
+    }
+
+    // For each tileset get the pixel data.
+    for (const auto& [tilesetIndex, listOfTiles] : tilesetToTiles)
+    {
+        const mi::ImageHandle& img = tilesets[tilesetIndex];
+        std::vector<std::uint8_t> pixelData = img.GetPixelData();
+        std::int32_t width = img.GetWidth();
+
+        // For each tile find the base rectangle data by looking at each pixel in the tile.
+        for (const std::string& tilename : listOfTiles)
+        {
+            std::int32_t firstX = -1; // Use -1 to represent unset.
+            std::int32_t firstY = -1;
+            std::int32_t lastX  = -1;
+            std::int32_t lastY  = -1;
+
+            const Tile& tile = tiles[GetTileIndex(tilename)];
+            const std::int32_t offsetX = tile.x;
+            const std::int32_t offsetY = tile.y;
+
+            bool blocking = true;
+
+            for (std::int32_t y=0; y<tileSizeInPixels; ++y)
+            for (std::int32_t x=0; x<tileSizeInPixels; ++x)
+            {
+                const std::int32_t xInTileSet = x + offsetX;
+                const std::int32_t yInTileSet = y + offsetY;
+                const std::int32_t index = (yInTileSet*width + xInTileSet) * 4;
+                const std::uint8_t r = pixelData[index];
+                const std::uint8_t g = pixelData[index+1];
+                const std::uint8_t b = pixelData[index+2];
+
+                if (!((r==255 && g==0 && b==0) || (r==0 && g==255 && b==0)))
+                    continue; // Not red or green.
+
+                if (g == 255)
+                    blocking = false; // A green base represents non-blocking.
+
+                if (firstX == -1)
+                {
+                    firstX = x;
+                    firstY = y;
+                }
+
+                lastX = x;
+                lastY = y;
+            }
+
+            // Fill in the base data.
+            TileBaseRect& base = baseTiles[tilename];
+            if (firstX == -1)
+            {
+                base.leftX    = 0;
+                base.bottomY  = 0;
+                base.width    = 0;
+                base.height   = 0;
+                base.blocking = false;
+            }
+            else
+            {
+                base.leftX    = firstX;
+                base.bottomY  = lastY;
+                base.width    = lastX - firstX + 1;
+                base.height   = lastY - firstY + 1;
+                base.blocking = blocking;
+            }
+        }
     }
 }
