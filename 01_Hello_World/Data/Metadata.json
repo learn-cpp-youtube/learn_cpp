@@ -2,7 +2,8 @@
     "General":
     {
         "TileSize": 16,
-        "KeyColor": "0xFE00DD"
+        "KeyColor": "0xFE00DD",
+        "DefaultGlanceDist": 4
     },
     "Tilesets":
     {
@@ -28,10 +29,23 @@
                 "HeroFacingLeftPushingA":  {"Pos": [115, 20], "Base": "TestTiles/BaseHero"},
                 "HeroFacingLeftPushingB":  {"Pos": [134, 20], "Base": "TestTiles/BaseHero"},
                 "Background":              {"Pos": [  1, 39], "Base": "TestTiles/BaseFullPassable"},
-                "Block":                   {"Pos": [ 20, 39], "Base": "TestTiles/BaseFullBlocking"},
+                "Block":
+                {
+                    "Pos"       : [20, 39],
+                    "Base"      : "TestTiles/BaseFullBlocking",
+                    "GlanceDist": 4
+                },
+                "BlockPushable":
+                {
+                    "Pos"       : [39, 39],
+                    "Base"      : "TestTiles/BaseFullBlocking",
+                    "GlanceDist": 8
+                },
+
                 "BaseFullPassable":        {"Pos": [  1, 58]},
                 "BaseFullBlocking":        {"Pos": [ 20, 58]},
                 "BaseHero":                {"Pos": [ 39, 58], "Base": "TestTiles/BaseHero"},
+
                 "KeyDownArrowUnpushed":    {"Pos": [  1, 77]},
                 "KeyDownArrowPushed":      {"Pos": [ 20, 77]},
                 "KeyUpArrowUnpushed":      {"Pos": [ 39, 77]},
@@ -52,7 +66,8 @@
             "TileMapping":
             {
                 "b": "TestTiles/Background",
-                "X": "TestTiles/Block"
+                "X": "TestTiles/Block",
+                "P": "TestTiles/BlockPushable"
             },
             "Background":
             [
@@ -76,8 +91,8 @@
                 ".X..XXXX.X",
                 ".....X....",
                 "..........",
-                "..........",
-                "..........",
+                "..XX..PP..",
+                "..XX..PP..",
                 ".........."
             ]
         }

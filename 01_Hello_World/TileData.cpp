@@ -51,7 +51,11 @@ void TileData::Init(mi::MediaInterface& mi, const json::Object& metadata)
     const json::Object& generalObj = GetValue(metadata, "General").GetObject();
 
     tileSizeInPixels = static_cast<std::int32_t>(GetValue(generalObj, "TileSize").GetInteger());
+    
     mi::Color keyColor = ConvertToColor(GetValue(generalObj, "KeyColor").GetString());
+    
+    std::int32_t defaultGlanceDist = static_cast<std::int32_t>(
+        GetValue(generalObj, "DefaultGlanceDist").GetInteger());
 
     // Read the tilesets info.
     // (In the first pass don't read the base data but keep a list of base tiles.)
@@ -60,7 +64,7 @@ void TileData::Init(mi::MediaInterface& mi, const json::Object& metadata)
     const json::Object& tilesetsObj = GetValue(metadata, "Tilesets").GetObject();
     for (const auto& [name, data] : tilesetsObj)
     {
-        tile.tilesetIndex = static_cast<std::int32_t>(tilesets.size());
+        tile.renderInfo.tilesetIndex = static_cast<std::int32_t>(tilesets.size());
 
         // Read filepath and create image.
         const std::string& filepath = GetValue(data.GetObject(), "Filepath").GetString();
@@ -80,14 +84,22 @@ void TileData::Init(mi::MediaInterface& mi, const json::Object& metadata)
             if (posArray.size() != 2)
                 throw error("Expected \"Pos\" to be an array of size 2.");
 
-            tile.x = static_cast<std::int32_t>(posArray[0].GetInteger());
-            tile.y = static_cast<std::int32_t>(posArray[1].GetInteger());
+            tile.renderInfo.x = static_cast<std::int32_t>(posArray[0].GetInteger());
+            tile.renderInfo.y = static_cast<std::int32_t>(posArray[1].GetInteger());
 
+            // Check if there is an explicit glance distance.
+            auto it = tileObj.find("GlanceDist");
+            if (it != tileObj.end())
+                tile.meta.glanceDist = static_cast<std::int32_t>(it->second.GetInteger());
+            else
+                tile.meta.glanceDist = defaultGlanceDist;
+
+            // Add to tiles list.
             tiles.push_back(tile);
             stringToTileIndex.insert({name+"/"+tileName, tileIndex});
             
             // Check if there is an associated base tile. 
-            auto it = tileObj.find("Base");
+            it = tileObj.find("Base");
             if (it != tileObj.end())
                 baseTiles[it->second.GetString()] = TileBaseRect{}; // Placeholder.
         }
@@ -144,16 +156,19 @@ void TileData::DrawTile(mi::ImageHandle& destImg,
     {
         const Tile& maskTile = tiles[maskTileIndex];
         destImg.DrawImage(destX, destY,
-                          tilesets[srcTile.tilesetIndex],
-                          srcTile.x, srcTile.y, tileSizeInPixels, tileSizeInPixels,
+                          tilesets[srcTile.renderInfo.tilesetIndex],
+                          srcTile.renderInfo.x, srcTile.renderInfo.y,
+                          tileSizeInPixels, tileSizeInPixels,
                           alpha,
-                          &tilesets[maskTile.tilesetIndex], maskTile.x, maskTile.y);
+                          &tilesets[maskTile.renderInfo.tilesetIndex],
+                          maskTile.renderInfo.x, maskTile.renderInfo.y);
     }
     else
     {
         destImg.DrawImage(destX, destY,
-                          tilesets[srcTile.tilesetIndex],
-                          srcTile.x, srcTile.y, tileSizeInPixels, tileSizeInPixels,
+                          tilesets[srcTile.renderInfo.tilesetIndex],
+                          srcTile.renderInfo.x, srcTile.renderInfo.y,
+                          tileSizeInPixels, tileSizeInPixels,
                           alpha);
     }
 }
@@ -169,7 +184,7 @@ void TileData::FillInBaseData(std::map<std::string, TileBaseRect>& baseTiles)
         if (tileIndex == TileData::NotFound)
             throw error("Could not find tile data for \""+name+"\".");
 
-        std::int32_t tilesetIndex = tiles[tileIndex].tilesetIndex;
+        std::int32_t tilesetIndex = tiles[tileIndex].renderInfo.tilesetIndex;
         tilesetToTiles[tilesetIndex].push_back(name);
     }
 
@@ -189,8 +204,8 @@ void TileData::FillInBaseData(std::map<std::string, TileBaseRect>& baseTiles)
             std::int32_t lastY  = -1;
 
             const Tile& tile = tiles[GetTileIndex(tilename)];
-            const std::int32_t offsetX = tile.x;
-            const std::int32_t offsetY = tile.y;
+            const std::int32_t offsetX = tile.renderInfo.x;
+            const std::int32_t offsetY = tile.renderInfo.y;
 
             bool blocking = true;
 

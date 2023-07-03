@@ -4,29 +4,11 @@
 
 using error = std::runtime_error;
 
-std::int32_t Area::GetForegroundTileIndex(std::int32_t x, std::int32_t y) const
-{
-    return foregroundTiles[y][x];
-}
-
-std::int32_t& Area::GetForegroundTileIndex(std::int32_t x, std::int32_t y)
-{
-    return foregroundTiles[y][x];
-}
-
-std::int32_t Area::GetBackgroundTileIndex(std::int32_t x, std::int32_t y) const
-{
-    return backgroundTiles[y][x];
-}
-
-std::int32_t& Area::GetBackgroundTileIndex(std::int32_t x, std::int32_t y)
-{
-    return backgroundTiles[y][x];
-}
-
 void AreaData::Init(const TileData& tileData, const json::Object& metadata)
 {
     Free();
+
+    const std::int32_t tileSize = tileData.GetTileSizeInPixels();
 
     // Read the areas info.
     const json::Object& areasObj = GetValue(metadata, "Areas").GetObject();
@@ -50,14 +32,12 @@ void AreaData::Init(const TileData& tileData, const json::Object& metadata)
                                 GetValue(dataObj, "HeightInTiles").GetInteger());
 
         // Resize tile arrays.
-        area.backgroundTiles.resize(area.heightInTiles);
-        for (std::vector<std::int32_t>& v : area.backgroundTiles)
+        area.background.tiles.resize(area.heightInTiles);
+        for (std::vector<std::int32_t>& v : area.background.tiles)
             v.resize(area.widthInTiles, TileData::NotFound);
 
-        area.foregroundTiles.resize(area.heightInTiles);
-        for (std::vector<std::int32_t>& v : area.foregroundTiles)
-            v.resize(area.widthInTiles, TileData::NotFound);
-        
+        area.foreground.objects.resize(0);
+
         // Create character to tile index map.
         std::map<char, std::int32_t> charToTile;
 
@@ -87,7 +67,7 @@ void AreaData::Init(const TileData& tileData, const json::Object& metadata)
             {
                 auto it = charToTile.find(row[x]);
                 if (it != charToTile.end())
-                    area.backgroundTiles[y][x] = it->second;
+                    area.background.tiles[y][x] = it->second;
             }
         }
 
@@ -101,16 +81,13 @@ void AreaData::Init(const TileData& tileData, const json::Object& metadata)
             std::string row = foregroundTilesArray[y].GetString();
 
             if (row.size() != area.widthInTiles)
-            {
-             
                 throw error("Tile array width doesn't match WidthInTiles field.");
-            }
 
             for (std::int32_t x=0; x<area.widthInTiles; ++x)
             {
                 auto it = charToTile.find(row[x]);
                 if (it != charToTile.end())
-                    area.foregroundTiles[y][x] = it->second;
+                    area.foreground.objects.emplace_back(x*tileSize, y*tileSize, it->second);
             }
         }
     }

@@ -7,6 +7,13 @@
 #include <map>
 #include <vector>
 
+struct TileRenderInfo
+{
+    std::int32_t tilesetIndex = 0; // Which tileset image does the tile lie in.
+    std::int32_t x = 0;
+    std::int32_t y = 0;
+};
+
 struct TileBaseRect
 {
     // Only rectanglular bases are supported.
@@ -23,6 +30,11 @@ struct TileBaseRect
 
     // If blocking is true, then the base rectangle is not passable by the hero character.
     bool blocking = false;
+};
+
+struct TileMetadata
+{
+    std::int32_t glanceDist = 0; // In pixels.
 };
 
 class TileData
@@ -42,7 +54,10 @@ public:
     std::int32_t GetTileIndex(const std::string& id) const;
 
     const TileBaseRect& GetTileBaseRect(std::int32_t tileIndex) const
-    { return tiles[tileIndex].base; } 
+    { return tiles[tileIndex].base; }
+
+    const TileMetadata& GetTileMetadata(std::int32_t tileIndex) const
+    { return tiles[tileIndex].meta; } 
 
     void DrawTile(mi::ImageHandle& destImg, float destX, float destY,
                   std::int32_t srcTileIndex,
@@ -68,10 +83,9 @@ public:
 private:
     struct Tile
     {
-        std::int32_t tilesetIndex; // Which tileset image does the tile lie in.
-        std::int32_t x;
-        std::int32_t y;
-        TileBaseRect base;
+        TileRenderInfo renderInfo;
+        TileBaseRect   base;
+        TileMetadata   meta;
     };
 
     void FillInBaseData(std::map<std::string, TileBaseRect>& baseTiles);

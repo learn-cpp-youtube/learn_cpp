@@ -57,8 +57,6 @@ private:
     std::int32_t timeToMoveAPixelOrthogonallyMicrosec = 0; // Filled in by constructor.
     std::int32_t timeToMoveAPixelDiagonallyMicrosec   = 0; // Filled in by constructor.
 
-    std::int32_t maxGlancePixels = 4; // Allow the character to glance by this number of pixels.
-
     // Keeps track of the last key presses.
     Dir keyPrimaryDir   = None;
     Dir keySecondaryDir = None;

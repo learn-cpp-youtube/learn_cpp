@@ -120,13 +120,15 @@ void Program::Display()
     for (std::int32_t y=0; y<backgroundHeightInTiles; ++y)
     for (std::int32_t x=0; x<backgroundWidthInTiles;  ++x)
     {
-        std::int32_t tileIndex = area.GetBackgroundTileIndex(x, y);
+        std::int32_t tileIndex = area.background.GetTileIndex(x, y);
         if (tileIndex != TileData::NotFound)
             tileData.DrawTile(screen, x * tileSizeInPixels, y * tileSizeInPixels, tileIndex);
+    }
 
-        tileIndex = area.GetForegroundTileIndex(x, y);
-        if (tileIndex != TileData::NotFound)
-            tileData.DrawTile(screen, x * tileSizeInPixels, y * tileSizeInPixels, tileIndex);
+    for (const auto& obj : area.foreground.objects)
+    {
+        if (obj.tile != TileData::NotFound)
+            tileData.DrawTile(screen, obj.x, obj.y, obj.tile);
     }
 
     // Draw the hero.

@@ -1,5 +1,46 @@
 #include "CollisionDetection.h"
 
+namespace
+{
+
+ObjectsIntersecting IntersectingAgainstForegroundHelper(std::int32_t tileX,
+                                                        std::int32_t tileY,
+                                                        const TileBaseRect& base,
+                                                        const Area& area,
+                                                        const TileData& tileData,
+                                                        bool returnAfterFirstIntersection)
+{
+    // TODO: make this more efficient (i.e. don't check for intersection with everything instead
+    // create a cached smaller list of potentials).
+
+    ObjectsIntersecting output;
+    const auto& objects = area.foreground.objects;
+
+    for (std::int32_t index=0; index<objects.size(); ++index)
+    {
+        const auto& obj = objects[index];
+        if (obj.tile == TileData::NotFound)
+            continue; // No tile.
+
+        const TileBaseRect& baseForegroundTile = tileData.GetTileBaseRect(obj.tile);
+        if (!base.blocking)
+            continue;
+
+        if (!BasesIntersect(tileX, tileY, base, obj.x, obj.y, baseForegroundTile))
+            continue;
+
+        output.objectIndices[output.numberFound] = index;
+        output.numberFound += 1;
+
+        if (returnAfterFirstIntersection || output.numberFound == output.objectIndices.size())
+            break;
+    }
+
+    return output;
+}
+
+} // End of anonymous namespace.
+
 bool BasesIntersect(std::int32_t tileX1, std::int32_t tileY1, const TileBaseRect& base1,
                     std::int32_t tileX2, std::int32_t tileY2, const TileBaseRect& base2)
 {
@@ -28,29 +69,16 @@ bool IntersectingAgainstForeground(std::int32_t tileX,
                                    const Area& area,
                                    const TileData& tileData)
 {
-    // TODO: make this more efficient (i.e. don't check for intersection with everything instead
-    // create a cached smaller list of potentials).
+    ObjectsIntersecting listOfIntersecting =
+        IntersectingAgainstForegroundHelper(tileX, tileY, base, area, tileData, true);
+    return (listOfIntersecting.numberFound != 0);
+}
 
-    const std::int32_t tileSize = tileData.GetTileSizeInPixels();
-
-    for (std::int32_t yIndexPos=0; yIndexPos<area.heightInTiles; ++yIndexPos)
-    for (std::int32_t xIndexPos=0; xIndexPos<area.widthInTiles;  ++xIndexPos)
-    {
-        std::int32_t tileIndex = area.GetForegroundTileIndex(xIndexPos, yIndexPos);
-        
-        if (tileIndex == TileData::NotFound)
-            continue; // No tile.
-
-        const TileBaseRect& baseForegroundTile = tileData.GetTileBaseRect(tileIndex);
-        if (!base.blocking)
-            continue;
-
-        if (BasesIntersect(tileX, tileY, base,
-                           xIndexPos*tileSize, yIndexPos*tileSize, baseForegroundTile))
-        {
-            return true;
-        }
-    }
-
-    return false;
+ObjectsIntersecting ListOfIntersectingForegroundObjects(std::int32_t tileX,
+                                                        std::int32_t tileY,
+                                                        const TileBaseRect& base,
+                                                        const Area& area,
+                                                        const TileData& tileData)
+{
+    return IntersectingAgainstForegroundHelper(tileX, tileY, base, area, tileData, false);
 }

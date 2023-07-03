@@ -232,22 +232,113 @@ Hero::Dir Hero::DetermineGlanceDir(Dir primaryDir, const TileBaseRect& base)
     glanceDir[0] = static_cast<Dir>((static_cast<std::int32_t>(primaryDir) + 1) % 4);
     glanceDir[1] = static_cast<Dir>((static_cast<std::int32_t>(primaryDir) + 3) % 4);
 
+    // Distance of -1 represents a failure.
+    std::int32_t glanceDistance[2] = {-1, -1};
+
     std::int32_t pX = 0;
     std::int32_t pY = 0;
     UpdateOffsetsFromDir(pX, pY, primaryDir);
 
-    std::int32_t gX[2] = {0, 0};
-    std::int32_t gY[2] = {0, 0};
-    for (std::int32_t i=0; i<2; ++i)
-        UpdateOffsetsFromDir(gX[i], gY[i], glanceDir[i]);
+    ObjectsIntersecting blocking = 
+        ListOfIntersectingForegroundObjects(x+pX, y+pY, base, *area, *tileData);
 
-    for (std::int32_t dist=1; dist<=maxGlancePixels; ++dist)
     for (std::int32_t i=0; i<2; ++i)
     {
-        if (!IntersectingAgainstForeground(x+pX+gX[i]*dist, y+pY+gY[i]*dist, base, *area, *tileData)
-            && !IntersectingAgainstForeground(x+gX[i]*dist, y+gY[i]*dist, base, *area, *tileData))
-            return glanceDir[i];
+        // Attempt to glance in glanceDir[i].
+        const Dir& dir = glanceDir[i];
+
+        std::int32_t maxGlanceDist     = 0;
+        std::int32_t allowedGlanceDist = 0;
+        for (std::int32_t j=0; j<blocking.numberFound; ++j)
+        {
+            const DynamicArea::Object& obj = area->foreground.objects[blocking.objectIndices[j]];
+            const TileBaseRect& blockingBase = tileData->GetTileBaseRect(obj.tile);
+            
+            std::int32_t glanceDist;
+            switch (dir)
+            {
+            case Up:
+                // Distance to match the bottom of the bases
+                // + height of the blocking obj to get the character to move over it.
+                glanceDist = (base.bottomY + y) - (blockingBase.bottomY + obj.y) 
+                            + blockingBase.height;
+                break;
+            case Down:
+                // Distance to match the bottom of the bases
+                // + height of the character to move under the block.
+                glanceDist = (blockingBase.bottomY + obj.y) - (base.bottomY + y) + base.height;
+                break;
+            case Left:
+                // Distance to match the left of the bases
+                // + width of the character to move left of the block.
+                glanceDist = (base.leftX + x) - (blockingBase.leftX + obj.x) + base.width;
+                break;
+            case Right:
+                // Distance to match the left of the bases
+                // + width of the blocking obj to move right of the block.
+                glanceDist = (blockingBase.leftX + obj.x) - (base.leftX + x) + blockingBase.width;
+                break;
+            }
+
+            if (maxGlanceDist < glanceDist)
+            {
+                maxGlanceDist = glanceDist;
+                allowedGlanceDist = tileData->GetTileMetadata(obj.tile).glanceDist;
+            }
+        }
+
+        if (maxGlanceDist > allowedGlanceDist)
+            continue; // Failed. Try a different glance direction.
+
+        // Check we aren't blocked at the target position (after we glance and move a single pixel
+        // in the primaryDir).
+        std::int32_t gX = 0;
+        std::int32_t gY = 0;
+        
+        UpdateOffsetsFromDir(gX, gY, dir);
+        
+        gX *= maxGlanceDist;
+        gY *= maxGlanceDist;
+                
+        if (IntersectingAgainstForeground(x+pX+gX, y+pY+gY, base, *area, *tileData))
+            continue; // Failed, would be blocked.
+
+        // Check we aren't blocked whilst glancing to the target position.
+        TileBaseRect baseIncreased = base;
+        switch (dir)
+        {
+        case Up:
+            baseIncreased.height += maxGlanceDist;
+            break;
+        case Down:
+            baseIncreased.height  += maxGlanceDist;
+            baseIncreased.bottomY += maxGlanceDist;
+            break;
+        case Left:
+            baseIncreased.width += maxGlanceDist;
+            baseIncreased.leftX -= maxGlanceDist;
+            break;
+        case Right:
+            baseIncreased.width += maxGlanceDist;
+            break;
+        }
+
+        if (IntersectingAgainstForeground(x, y, baseIncreased, *area, *tileData))
+            continue; // Failed, would be blocked.
+        
+        // Succeeded.
+        glanceDistance[i] = maxGlanceDist;
     }
 
-    return None;
+    if (glanceDistance[0] == -1 && glanceDistance[1] == -1)
+        return None; // No valid choices, can't glance.
+
+    if (glanceDistance[0] == -1)
+        return glanceDir[1]; // Only valid choice.
+
+    if (glanceDistance[1] == -1)
+        return glanceDir[0]; // Only valid choice.
+        
+    // Both choices are valid, choose the shorter distance.
+    return (glanceDistance[0] > glanceDistance[1]) ? glanceDir[1] : glanceDir[0];
 }
