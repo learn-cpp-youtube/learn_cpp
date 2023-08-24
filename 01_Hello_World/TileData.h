@@ -34,7 +34,9 @@ struct TileBaseRect
 
 struct TileMetadata
 {
-    std::int32_t glanceDist = 0; // In pixels.
+    std::int32_t glanceDist = 0;         // In pixels.
+    std::int32_t pushPeriod = 0;         // In milliseconds.
+    std::int32_t pushingSpeedPeriod = 0; // Time in milliseconds to move one tile orthogonally. 
 };
 
 class TileData

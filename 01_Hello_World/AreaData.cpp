@@ -4,7 +4,70 @@
 
 using error = std::runtime_error;
 
-void AreaData::Init(const TileData& tileData, const json::Object& metadata)
+Area::Area(std::int32_t widthInTiles, std::int32_t heightInTiles, const SpeedData& speedData,
+           const TileData& tileData)
+{
+    speed = &speedData;
+
+    this->widthInTiles  = widthInTiles;
+    this->heightInTiles = heightInTiles;
+
+    // Resize tile arrays.
+    background.tiles.resize(heightInTiles);
+    for (std::vector<std::int32_t>& v : background.tiles)
+        v.resize(widthInTiles, TileData::NotFound);
+
+    foreground.objects.resize(0);
+}
+
+void Area::Update()
+{
+    for (auto& obj : foreground.objects)
+    {
+        BlockProperties& block = obj.blockProperties;
+
+        if (block.type == BlockType::Unaligned)
+        {
+            if (block.animMoveTimeMicrosec < speed->frameIntervalMicrosec)
+                block.animMoveTimeMicrosec = 0;
+            else
+                block.animMoveTimeMicrosec -= speed->frameIntervalMicrosec;
+            continue;
+        }
+
+        if (block.type != BlockType::SinglePushGridAligned &&
+            block.type != BlockType::MultiplePushGridAligned)
+            continue;
+
+        while (block.animMoveTimeMicrosec < speed->frameIntervalMicrosec)
+        {
+            if (!block.isMoving)
+                block.animMoveTimeMicrosec = speed->frameIntervalMicrosec;
+            else
+            {
+                if (obj.x == block.targetX && obj.y == block.targetY)
+                {
+                    block.isMoving = false;
+                    if (block.type == BlockType::SinglePushGridAligned)
+                        block.finishedMoving = true;
+                    continue;
+                }
+
+                block.animMoveTimeMicrosec += block.timeToMoveAPixelOrthogonallyMicrosec;
+
+                obj.x += block.offsetX;
+                obj.y += block.offsetY;
+            }
+        }
+
+        // Do the rest of the waiting in the next frame.
+        block.animMoveTimeMicrosec -= speed->frameIntervalMicrosec;
+    }
+}
+
+void AreaData::Init(const SpeedData& speedData,
+                    const TileData& tileData,
+                    const json::Object& metadata)
 {
     Free();
 
@@ -20,23 +83,16 @@ void AreaData::Init(const TileData& tileData, const json::Object& metadata)
         std::int32_t areaIndex = static_cast<std::int32_t>(areas.size());
         stringToAreaIndex.insert({name, static_cast<std::int32_t>(areas.size())});
 
-        // Add new area to areas array.
-        areas.emplace_back(Area{});
-        Area& area = areas.back();
-
-        // Fill in dimension info.
+        // Get dimension info.
         const json::Object& dataObj = data.GetObject();
-        area.widthInTiles  = static_cast<std::int32_t>(
-                                GetValue(dataObj, "WidthInTiles").GetInteger());
-        area.heightInTiles = static_cast<std::int32_t>(
-                                GetValue(dataObj, "HeightInTiles").GetInteger());
+        std::int32_t widthInTiles  = static_cast<std::int32_t>(
+                                     GetValue(dataObj, "WidthInTiles").GetInteger());
+        std::int32_t heightInTiles = static_cast<std::int32_t>(
+                                     GetValue(dataObj, "HeightInTiles").GetInteger());
 
-        // Resize tile arrays.
-        area.background.tiles.resize(area.heightInTiles);
-        for (std::vector<std::int32_t>& v : area.background.tiles)
-            v.resize(area.widthInTiles, TileData::NotFound);
-
-        area.foreground.objects.resize(0);
+        // Add new area to areas array.
+        areas.emplace_back(Area{widthInTiles, heightInTiles, speedData, tileData});
+        Area& area = areas.back();
 
         // Create character to tile index map.
         std::map<char, std::int32_t> charToTile;
@@ -89,6 +145,37 @@ void AreaData::Init(const TileData& tileData, const json::Object& metadata)
                 if (it != charToTile.end())
                     area.foreground.objects.emplace_back(x*tileSize, y*tileSize, it->second);
             }
+        }
+
+        // Fill in extra data about object tiles.
+        std::int32_t pushBlockId         = tileData.GetTileIndex("TestTiles/BlockPushable");
+        std::int32_t singlePushBlockId   = tileData.GetTileIndex("TestTiles/BlockSinglePush");
+        std::int32_t multiplePushBlockId = tileData.GetTileIndex("TestTiles/BlockMultiplePush");
+        for (auto& obj : area.foreground.objects)
+        {
+            auto& block = obj.blockProperties;
+            block.finishedMoving = false;
+
+            if (obj.tile == pushBlockId)
+                block.type = BlockType::Unaligned;
+            else
+            if (obj.tile == singlePushBlockId)
+                block.type = BlockType::SinglePushGridAligned;
+            else
+            if (obj.tile == multiplePushBlockId)
+                block.type = BlockType::MultiplePushGridAligned;
+            else
+            {
+                block.type = BlockType::Immovable;
+                block.finishedMoving = true;
+            }
+
+            const auto& tileMetadata = tileData.GetTileMetadata(obj.tile);
+            block.glanceDist = tileMetadata.glanceDist;
+            block.pushPeriodMicrosec = tileMetadata.pushPeriod * 1000 * speedData.slowDownFactor;
+            block.timeToMoveAPixelOrthogonallyMicrosec = 
+                tileMetadata.pushingSpeedPeriod * 1000 / tileData.GetTileSizeInPixels()
+                * speedData.slowDownFactor;
         }
     }
 }

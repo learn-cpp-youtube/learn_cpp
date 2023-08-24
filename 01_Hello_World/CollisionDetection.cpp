@@ -6,6 +6,7 @@ namespace
 ObjectsIntersecting IntersectingAgainstForegroundHelper(std::int32_t tileX,
                                                         std::int32_t tileY,
                                                         const TileBaseRect& base,
+                                                        std::int32_t excludeObject,
                                                         const Area& area,
                                                         const TileData& tileData,
                                                         bool returnAfterFirstIntersection)
@@ -23,10 +24,13 @@ ObjectsIntersecting IntersectingAgainstForegroundHelper(std::int32_t tileX,
             continue; // No tile.
 
         const TileBaseRect& baseForegroundTile = tileData.GetTileBaseRect(obj.tile);
-        if (!base.blocking)
+        if (!baseForegroundTile.blocking)
             continue;
 
         if (!BasesIntersect(tileX, tileY, base, obj.x, obj.y, baseForegroundTile))
+            continue;
+
+        if (index == excludeObject)
             continue;
 
         output.objectIndices[output.numberFound] = index;
@@ -66,19 +70,22 @@ bool BasesIntersect(std::int32_t tileX1, std::int32_t tileY1, const TileBaseRect
 bool IntersectingAgainstForeground(std::int32_t tileX,
                                    std::int32_t tileY,
                                    const TileBaseRect& base,
+                                   std::int32_t excludeObject,
                                    const Area& area,
                                    const TileData& tileData)
 {
-    ObjectsIntersecting listOfIntersecting =
-        IntersectingAgainstForegroundHelper(tileX, tileY, base, area, tileData, true);
+    ObjectsIntersecting listOfIntersecting = IntersectingAgainstForegroundHelper(tileX, tileY, base,
+                                                excludeObject, area, tileData, true);
     return (listOfIntersecting.numberFound != 0);
 }
 
 ObjectsIntersecting ListOfIntersectingForegroundObjects(std::int32_t tileX,
                                                         std::int32_t tileY,
                                                         const TileBaseRect& base,
+                                                        std::int32_t excludeObject,
                                                         const Area& area,
                                                         const TileData& tileData)
 {
-    return IntersectingAgainstForegroundHelper(tileX, tileY, base, area, tileData, false);
+    return IntersectingAgainstForegroundHelper(tileX, tileY, base,
+                                               excludeObject, area, tileData, false);
 }

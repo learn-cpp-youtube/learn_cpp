@@ -57,6 +57,12 @@ void TileData::Init(mi::MediaInterface& mi, const json::Object& metadata)
     std::int32_t defaultGlanceDist = static_cast<std::int32_t>(
         GetValue(generalObj, "DefaultGlanceDist").GetInteger());
 
+    std::int32_t defaultPushPeriod = static_cast<std::int32_t>(
+        GetValue(generalObj, "DefaultPushPeriod").GetInteger());
+
+    std::int32_t defaultPushingSpeedPeriod = static_cast<std::int32_t>(
+        GetValue(generalObj, "DefaultPushingSpeedPeriod").GetInteger());
+
     // Read the tilesets info.
     // (In the first pass don't read the base data but keep a list of base tiles.)
     Tile tile{};
@@ -93,6 +99,20 @@ void TileData::Init(mi::MediaInterface& mi, const json::Object& metadata)
                 tile.meta.glanceDist = static_cast<std::int32_t>(it->second.GetInteger());
             else
                 tile.meta.glanceDist = defaultGlanceDist;
+
+            // Check if there is an explicit push period.
+            it = tileObj.find("PushPeriod");
+            if (it != tileObj.end())
+                tile.meta.pushPeriod = static_cast<std::int32_t>(it->second.GetInteger());
+            else
+                tile.meta.pushPeriod = defaultPushPeriod;
+
+            // Check if there is an explicit pushing speed period.
+            it = tileObj.find("PushingSpeedPeriod");
+            if (it != tileObj.end())
+                tile.meta.pushingSpeedPeriod = static_cast<std::int32_t>(it->second.GetInteger());
+            else
+                tile.meta.pushingSpeedPeriod = defaultPushingSpeedPeriod;
 
             // Add to tiles list.
             tiles.push_back(tile);

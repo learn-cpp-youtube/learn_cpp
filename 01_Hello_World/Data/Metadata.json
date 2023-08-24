@@ -3,7 +3,9 @@
     {
         "TileSize": 16,
         "KeyColor": "0xFE00DD",
-        "DefaultGlanceDist": 4
+        "DefaultGlanceDist": 4,
+        "DefaultPushPeriod": 100,
+        "DefaultPushingSpeedPeriod": 500
     },
     "Tilesets":
     {
@@ -29,17 +31,34 @@
                 "HeroFacingLeftPushingA":  {"Pos": [115, 20], "Base": "TestTiles/BaseHero"},
                 "HeroFacingLeftPushingB":  {"Pos": [134, 20], "Base": "TestTiles/BaseHero"},
                 "Background":              {"Pos": [  1, 39], "Base": "TestTiles/BaseFullPassable"},
-                "Block":
+                "BlockPushable":
                 {
                     "Pos"       : [20, 39],
                     "Base"      : "TestTiles/BaseFullBlocking",
-                    "GlanceDist": 4
+                    "GlanceDist": 5,
+                    "PushPeriod": 0,
+                    "PushingSpeedPeriod": 900
                 },
-                "BlockPushable":
+                "BlockSinglePush":
                 {
                     "Pos"       : [39, 39],
                     "Base"      : "TestTiles/BaseFullBlocking",
-                    "GlanceDist": 8
+                    "GlanceDist": 4,
+                    "PushPeriod": 300
+                },
+                "Block":
+                {
+                    "Pos"       : [58, 39],
+                    "Base"      : "TestTiles/BaseFullBlocking",
+                    "GlanceDist": 0,
+                    "PushPeriod": 300
+                },
+                "BlockMultiplePush":
+                {
+                    "Pos"       : [77, 39],
+                    "Base"      : "TestTiles/BaseFullBlocking",
+                    "GlanceDist": 4,
+                    "PushPeriod": 300
                 },
 
                 "BaseFullPassable":        {"Pos": [  1, 58]},
@@ -67,7 +86,9 @@
             {
                 "b": "TestTiles/Background",
                 "X": "TestTiles/Block",
-                "P": "TestTiles/BlockPushable"
+                "P": "TestTiles/BlockPushable",
+                "S": "TestTiles/BlockSinglePush",
+                "M": "TestTiles/BlockMultiplePush"
             },
             "Background":
             [
@@ -85,10 +106,10 @@
             "Foreground":
             [
                 "..........",
-                "..........",
-                "...X......",
-                "....XX.XXX",
-                ".X..XXXX.X",
+                "P.........",
+                "...P......",
+                "..P.XX.XXX",
+                ".SM.XXSX.X",
                 ".....X....",
                 "..........",
                 "..XX..PP..",

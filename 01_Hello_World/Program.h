@@ -4,6 +4,7 @@
 #include "Hero.h"
 #include "AreaData.h"
 #include "TileData.h"
+#include "SpeedData.h"
 #include "KeyStates.h"
 #include <cmath>
 #include <vector>
@@ -31,7 +32,7 @@ private:
     mi::ImageHandle     screen; 
 
     std::int32_t fps   = 60;
-    std::int32_t scale = 3;
+    std::int32_t scale = 3*2;
 
     std::int32_t backgroundWidthInTiles;
     std::int32_t backgroundHeightInTiles;
@@ -39,8 +40,9 @@ private:
 
     std::int32_t areaIndex;
 
-    AreaData areaData;
-    TileData tileData;
+    AreaData  areaData;
+    TileData  tileData;
+    SpeedData speedData;
     
     KeyStates keyStates;
     KeyStatesDisplayHelper keyStatesDisplayHelper;

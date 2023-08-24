@@ -19,8 +19,9 @@ Program::Program(mi::MediaInterface* mi)
 void Program::Reload()
 {
     json::Object metadata = json::ParseFile("Data/Metadata.json").GetObject();
-    tileData.Init(*mi, metadata);  
-    areaData.Init(tileData, metadata);
+    tileData.Init(*mi, metadata);
+    speedData = SpeedData{fps, tileData};
+    areaData.Init(speedData, tileData, metadata);
 
     areaIndex = areaData.GetAreaIndex("Test");
 
@@ -44,7 +45,7 @@ void Program::Reload()
     keyStatesDisplayHelper = KeyStatesDisplayHelper{*mi, tileData};
 
     // Initialize hero.
-    hero = Hero{tileData, areaData.GetArea(areaIndex), fps};
+    hero = Hero{speedData, tileData, areaData.GetArea(areaIndex)};
 }
 
 void Program::MainLoop()
@@ -114,9 +115,10 @@ void Program::Display()
 {
     hero.Update(keyStates);
 
-    // Draw the area.
-    const Area& area = areaData.GetArea(areaIndex);
+    Area& area = areaData.GetArea(areaIndex);
+    area.Update();
 
+    // Draw the area.
     for (std::int32_t y=0; y<backgroundHeightInTiles; ++y)
     for (std::int32_t x=0; x<backgroundWidthInTiles;  ++x)
     {
